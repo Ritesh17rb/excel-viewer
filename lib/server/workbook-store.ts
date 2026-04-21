@@ -59,6 +59,16 @@ export async function readWorkbookJson<T>(relativePath: string): Promise<T> {
   return JSON.parse(text) as T
 }
 
+export async function readWorkbookJsonIfExists<T>(
+  relativePath: string,
+): Promise<T | null> {
+  try {
+    return await readWorkbookJson<T>(relativePath)
+  } catch {
+    return null
+  }
+}
+
 export async function openSourceStream(
   source: WorkbookUploadSource,
 ): Promise<Stream> {

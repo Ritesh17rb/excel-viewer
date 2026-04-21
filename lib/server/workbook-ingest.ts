@@ -170,7 +170,8 @@ export async function ingestWorkbook(
       pageCount: pagePaths.length,
       columnWidths,
       pages: pagePaths,
-      searchEnabled: false,
+      searchEnabled: true,
+      headerRows: 0,
     }
 
     manifest.sheetNames.push(sheetName)
@@ -250,7 +251,8 @@ function pushRow(
   values: string[],
 ): number {
   if (rowBuffer.length === 0) {
-    return rowBuffer.push(values), rowIndex
+    rowBuffer.push(values)
+    return rowIndex
   }
 
   rowBuffer.push(values)

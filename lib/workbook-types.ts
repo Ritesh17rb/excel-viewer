@@ -1,4 +1,5 @@
 export type BlobAccess = 'public' | 'private'
+export type SortDirection = 'asc' | 'desc'
 
 export interface WorkbookUploadSource {
   kind: 'blob' | 'local'
@@ -21,7 +22,8 @@ export interface WorkbookSheetManifest {
   pageCount: number
   columnWidths: number[]
   pages: string[]
-  searchEnabled: false
+  searchEnabled: boolean
+  headerRows: number
 }
 
 export interface WorkbookManifest {
@@ -41,3 +43,33 @@ export interface WorkbookSheetPage {
   rows: string[][]
 }
 
+export interface WorkbookFilterRule {
+  columnIndex: number
+  term: string
+}
+
+export interface WorkbookSortRule {
+  columnIndex: number
+  direction: SortDirection
+}
+
+export interface WorkbookSheetViewConfig {
+  headerRows: number
+  filters: WorkbookFilterRule[]
+  sort: WorkbookSortRule | null
+}
+
+export interface WorkbookSheetViewManifest extends WorkbookSheetManifest {
+  id: string
+  kind: 'view'
+  baseSheetName: string
+  filters: WorkbookFilterRule[]
+  sort: WorkbookSortRule | null
+}
+
+export interface WorkbookSearchMatch {
+  rowIndex: number
+  columnIndex: number
+  address: string
+  value: string
+}

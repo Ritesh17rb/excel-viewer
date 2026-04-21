@@ -15,6 +15,7 @@ interface CellPosition {
 interface SpreadsheetGridProps {
   sheet: WorkbookSheetManifest
   cacheVersion: number
+  headerRowCount: number
   selectedCell: CellPosition | null
   getCellValue: (rowIndex: number, columnIndex: number) => string | null
   requestVisibleRows: (rowStart: number, rowEnd: number) => void
@@ -28,6 +29,7 @@ const CELL_HEIGHT = 40
 export function SpreadsheetGrid({
   sheet,
   cacheVersion,
+  headerRowCount,
   selectedCell,
   getCellValue,
   requestVisibleRows,
@@ -63,6 +65,19 @@ export function SpreadsheetGrid({
     const last = (visibleRows.at(-1)?.index ?? 0) + 1
     requestVisibleRows(Math.max(0, first - 40), Math.min(sheet.rowCount, last + 40))
   }, [requestVisibleRows, sheet.rowCount, visibleRows])
+
+  useEffect(() => {
+    if (!selectedCell) {
+      return
+    }
+
+    rowVirtualizer.scrollToIndex(selectedCell.rowIndex, {
+      align: 'auto',
+    })
+    columnVirtualizer.scrollToIndex(selectedCell.columnIndex, {
+      align: 'auto',
+    })
+  }, [columnVirtualizer, rowVirtualizer, selectedCell])
 
   return (
     <div className="sheet-grid" data-cache-version={cacheVersion}>
@@ -152,12 +167,15 @@ export function SpreadsheetGrid({
               const isSelected =
                 selectedCell?.rowIndex === row.index &&
                 selectedCell?.columnIndex === column.index
+              const isHeaderCell = row.index < headerRowCount
 
               return (
                 <button
                   key={`${row.index}:${column.index}`}
                   className={`sheet-grid__cell${isSelected ? ' is-selected' : ''}${
                     value == null ? ' is-loading' : ''
+                  }${isHeaderCell ? ' is-header' : ''}${
+                    row.index % 2 === 1 ? ' is-alt' : ''
                   }`}
                   type="button"
                   onClick={() =>
@@ -183,4 +201,3 @@ export function SpreadsheetGrid({
     </div>
   )
 }
-

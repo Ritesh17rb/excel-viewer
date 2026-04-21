@@ -122,10 +122,15 @@ h2 {
 
 .upload-panel {
   display: grid;
-  gap: 6px;
+  gap: 10px;
   padding: 24px;
-  cursor: pointer;
   border-style: dashed;
+  align-content: start;
+}
+
+.upload-panel.is-dragging {
+  border-color: rgba(15, 132, 127, 0.42);
+  background: rgba(15, 132, 127, 0.08);
 }
 
 .upload-panel strong {
@@ -136,6 +141,51 @@ h2 {
 
 .upload-panel small {
   color: var(--muted);
+}
+
+.upload-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.upload-panel__meta {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.upload-button,
+.toolbar-button {
+  appearance: none;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--accent), #0f6e73);
+  color: white;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 12px 16px;
+  transition: transform 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
+  box-shadow: 0 14px 24px rgba(15, 132, 127, 0.18);
+}
+
+.upload-button:hover,
+.toolbar-button:hover {
+  transform: translateY(-1px);
+}
+
+.upload-button:disabled,
+.toolbar-button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+  transform: none;
+}
+
+.toolbar-button--ghost {
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text-strong);
+  box-shadow: none;
+  border: 1px solid var(--border);
 }
 
 .workspace-grid {
@@ -216,6 +266,145 @@ h2 {
   display: grid;
   gap: 18px;
   min-height: 780px;
+}
+
+.workbench-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 16px;
+}
+
+.control-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.control-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.control-card__header strong {
+  color: var(--text-strong);
+  font-family: var(--heading);
+  font-size: 0.95rem;
+}
+
+.toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.toolbar-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.toolbar-field {
+  display: grid;
+  gap: 8px;
+}
+
+.toolbar-field--grow {
+  flex: 1;
+}
+
+.toolbar-field span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.toolbar-input,
+.toolbar-select {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid rgba(21, 37, 48, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--text-strong);
+  padding: 0 14px;
+}
+
+.toolbar-input:focus,
+.toolbar-select:focus {
+  outline: 2px solid rgba(15, 132, 127, 0.18);
+  border-color: rgba(15, 132, 127, 0.42);
+}
+
+.toggle-row {
+  display: flex;
+  gap: 10px;
+  align-items: start;
+  color: var(--text-strong);
+}
+
+.toggle-row input {
+  margin-top: 2px;
+}
+
+.filter-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.filter-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 220px) minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.search-results {
+  display: grid;
+  gap: 8px;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.search-result {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.94);
+  text-align: left;
+  cursor: pointer;
+}
+
+.search-result strong {
+  color: var(--accent);
+}
+
+.search-result span {
+  color: var(--text-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.muted-copy--compact {
+  margin: 0;
+}
+
+.view-banner {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(15, 132, 127, 0.1);
+  color: var(--accent);
+  border: 1px solid rgba(15, 132, 127, 0.18);
 }
 
 .viewer-toolbar {
@@ -331,6 +520,15 @@ h2 {
   cursor: pointer;
 }
 
+.sheet-grid__cell.is-alt {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.sheet-grid__cell.is-header {
+  background: rgba(255, 158, 87, 0.12);
+  font-weight: 700;
+}
+
 .sheet-grid__cell.is-selected {
   background: rgba(15, 132, 127, 0.12);
   box-shadow: inset 0 0 0 2px rgba(15, 132, 127, 0.55);
@@ -393,6 +591,10 @@ h2 {
     grid-template-columns: 1fr;
   }
 
+  .workbench-toolbar {
+    grid-template-columns: 1fr;
+  }
+
   .viewer-toolbar {
     flex-direction: column;
     align-items: stretch;
@@ -411,6 +613,11 @@ h2 {
   }
 
   .metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .toolbar-grid,
+  .filter-row {
     grid-template-columns: 1fr;
   }
 }
