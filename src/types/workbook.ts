@@ -4,6 +4,7 @@ export interface WorkbookSummary {
   format: string
   loadedAt: string
   sheetNames: string[]
+  performanceMode: 'standard' | 'large'
 }
 
 export interface SheetMetadata {
@@ -12,6 +13,10 @@ export interface SheetMetadata {
   columnCount: number
   range: string | null
   columnWidths: number[]
+  populatedCellCount: number
+  largeSheetMode: boolean
+  searchEnabled: boolean
+  searchDisabledReason: string | null
 }
 
 export interface GridWindow {
@@ -83,6 +88,7 @@ export type WorkerResponse =
       sheetName: string
       query: string
       results: SearchResult[]
+      disabledReason: string | null
     }
   | {
       type: 'error'

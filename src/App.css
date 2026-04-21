@@ -346,6 +346,11 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
+.search-form input:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
 .viewer-statusbar {
   display: flex;
   flex-wrap: wrap;
@@ -367,6 +372,21 @@
   gap: 10px;
   overflow: auto;
   padding-bottom: 4px;
+}
+
+.info-banner {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(14, 132, 128, 0.1);
+  color: var(--accent);
+  border: 1px solid rgba(14, 132, 128, 0.18);
+}
+
+.info-banner--muted {
+  background: rgba(255, 149, 71, 0.12);
+  color: #8b5a2b;
+  border-color: rgba(255, 149, 71, 0.22);
 }
 
 .search-results__item {

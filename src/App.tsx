@@ -60,6 +60,9 @@ function App() {
   const selectedValue = selectedCell
     ? getCellValue(selectedCell.rowIndex, selectedCell.columnIndex)
     : null
+  const searchDisabledReason = activeSheetMeta?.searchDisabledReason ?? null
+  const isLargeMode =
+    workbook?.performanceMode === 'large' || activeSheetMeta?.largeSheetMode === true
 
   async function handleFiles(fileList: FileList | null) {
     const [file] = fileList ?? []
@@ -229,7 +232,9 @@ function App() {
                   </article>
                   <article>
                     <span>Parsing</span>
-                    <strong>Worker</strong>
+                    <strong>
+                      {workbook.performanceMode === 'large' ? 'Worker safe mode' : 'Worker'}
+                    </strong>
                   </article>
                 </div>
               </div>
@@ -297,15 +302,23 @@ function App() {
             <form className="search-form" onSubmit={handleSearchSubmit}>
               <input
                 type="search"
-                placeholder="Search current sheet"
+                placeholder={
+                  activeSheetMeta?.searchEnabled === false
+                    ? 'Search disabled for large sheets'
+                    : 'Search current sheet'
+                }
                 value={searchInput}
-                disabled={!activeSheetMeta}
+                disabled={!activeSheetMeta || activeSheetMeta.searchEnabled === false}
                 onChange={(event) => setSearchInput(event.currentTarget.value)}
               />
               <button
                 className="primary-button primary-button--compact"
                 type="submit"
-                disabled={!activeSheetMeta || searchState.status === 'loading'}
+                disabled={
+                  !activeSheetMeta ||
+                  activeSheetMeta.searchEnabled === false ||
+                  searchState.status === 'loading'
+                }
               >
                 {searchState.status === 'loading' ? 'Searching…' : 'Search'}
               </button>
@@ -328,9 +341,19 @@ function App() {
               <strong>{selectedAddress}</strong>
             </div>
             <div className="stat-chip">
+              <span>Filled cells</span>
+              <strong>
+                {activeSheetMeta
+                  ? formatCount(activeSheetMeta.populatedCellCount)
+                  : '0'}
+              </strong>
+            </div>
+            <div className="stat-chip">
               <span>Search</span>
               <strong>
-                {searchState.status === 'done'
+                {activeSheetMeta?.searchEnabled === false
+                  ? 'Guarded'
+                  : searchState.status === 'done'
                   ? `${searchState.results.length} hits`
                   : searchState.status === 'loading'
                     ? 'Running'
@@ -339,9 +362,22 @@ function App() {
             </div>
           </div>
 
+          {isLargeMode ? (
+            <div className="info-banner">
+              Large-file mode is active. The worker is using sparse cell lookups and
+              tighter caching so big sheets do not allocate a full in-memory grid.
+            </div>
+          ) : null}
+
+          {searchDisabledReason ? (
+            <div className="info-banner info-banner--muted">{searchDisabledReason}</div>
+          ) : null}
+
           {searchState.status === 'done' && searchState.query ? (
             <div className="search-results">
-              {searchState.results.length > 0 ? (
+              {searchState.disabledReason ? (
+                <p className="placeholder-copy">{searchState.disabledReason}</p>
+              ) : searchState.results.length > 0 ? (
                 searchState.results.map((result) => (
                   <button
                     key={`${result.address}:${result.value}`}

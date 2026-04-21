@@ -14,7 +14,10 @@ const TILE_ROWS = 60
 const TILE_COLUMNS = 12
 const INITIAL_ROW_PREFETCH = 96
 const INITIAL_COLUMN_PREFETCH = 14
-const MAX_CACHED_WINDOWS = 220
+const LARGE_INITIAL_ROW_PREFETCH = 48
+const LARGE_INITIAL_COLUMN_PREFETCH = 10
+const STANDARD_MAX_CACHED_WINDOWS = 220
+const LARGE_MAX_CACHED_WINDOWS = 96
 
 type ViewerStatus =
   | 'idle'
@@ -27,6 +30,7 @@ interface SearchState {
   status: 'idle' | 'loading' | 'done'
   query: string
   results: SearchResult[]
+  disabledReason: string | null
 }
 
 function makeTileKey(
@@ -39,6 +43,7 @@ function makeTileKey(
 
 export function useSpreadsheetWorker() {
   const workerRef = useRef<Worker | null>(null)
+  const workbookRef = useRef<WorkbookSummary | null>(null)
   const activeSheetRef = useRef<string | null>(null)
   const searchQueryRef = useRef('')
   const sheetMetadataRef = useRef<Record<string, SheetMetadata>>({})
@@ -56,6 +61,7 @@ export function useSpreadsheetWorker() {
     status: 'idle',
     query: '',
     results: [],
+    disabledReason: null,
   })
   const [cacheVersion, setCacheVersion] = useState(0)
   const [error, setError] = useState<string | null>(null)
@@ -136,6 +142,7 @@ export function useSpreadsheetWorker() {
         status: 'idle',
         query: '',
         results: [],
+        disabledReason: null,
       })
       setStatus('loading-sheet')
       setError(null)
@@ -157,6 +164,7 @@ export function useSpreadsheetWorker() {
     try {
       const buffer = await file.arrayBuffer()
 
+      workbookRef.current = null
       activeSheetRef.current = null
       searchQueryRef.current = ''
       sheetMetadataRef.current = {}
@@ -172,6 +180,7 @@ export function useSpreadsheetWorker() {
           status: 'idle',
           query: '',
           results: [],
+          disabledReason: null,
         })
         setError(null)
       })
@@ -202,6 +211,7 @@ export function useSpreadsheetWorker() {
     const worker = workerRef.current
     const sheetName = activeSheetRef.current
     const normalizedQuery = query.trim()
+    const activeSheet = sheetName ? sheetMetadataRef.current[sheetName] : null
 
     searchQueryRef.current = normalizedQuery
 
@@ -215,6 +225,19 @@ export function useSpreadsheetWorker() {
           status: 'idle',
           query: '',
           results: [],
+          disabledReason: null,
+        })
+      })
+      return
+    }
+
+    if (activeSheet && !activeSheet.searchEnabled) {
+      startTransition(() => {
+        setSearchState({
+          status: 'done',
+          query: normalizedQuery,
+          results: [],
+          disabledReason: activeSheet.searchDisabledReason,
         })
       })
       return
@@ -225,6 +248,7 @@ export function useSpreadsheetWorker() {
         status: 'loading',
         query: normalizedQuery,
         results: [],
+        disabledReason: null,
       })
     })
 
@@ -265,6 +289,7 @@ export function useSpreadsheetWorker() {
 
       switch (message.type) {
         case 'workbook-loaded': {
+          workbookRef.current = message.workbook
           sheetMetadataRef.current = {}
           setSheetMetaByName({})
 
@@ -314,9 +339,15 @@ export function useSpreadsheetWorker() {
           requestVisibleTiles(
             {
               rowStart: 0,
-              rowEnd: INITIAL_ROW_PREFETCH,
+              rowEnd:
+                message.sheet.largeSheetMode || workbookRef.current?.performanceMode === 'large'
+                  ? LARGE_INITIAL_ROW_PREFETCH
+                  : INITIAL_ROW_PREFETCH,
               colStart: 0,
-              colEnd: INITIAL_COLUMN_PREFETCH,
+              colEnd:
+                message.sheet.largeSheetMode || workbookRef.current?.performanceMode === 'large'
+                  ? LARGE_INITIAL_COLUMN_PREFETCH
+                  : INITIAL_COLUMN_PREFETCH,
             },
             message.sheet.name,
           )
@@ -334,7 +365,12 @@ export function useSpreadsheetWorker() {
           const cachedWindows = windowCacheRef.current
           cachedWindows.set(message.window.key, message.window)
 
-          while (cachedWindows.size > MAX_CACHED_WINDOWS) {
+          const cacheLimit =
+            workbookRef.current?.performanceMode === 'large'
+              ? LARGE_MAX_CACHED_WINDOWS
+              : STANDARD_MAX_CACHED_WINDOWS
+
+          while (cachedWindows.size > cacheLimit) {
             const oldestKey = cachedWindows.keys().next().value
 
             if (!oldestKey) {
@@ -364,6 +400,7 @@ export function useSpreadsheetWorker() {
               status: 'done',
               query: message.query,
               results: message.results,
+              disabledReason: message.disabledReason,
             })
           })
 

@@ -15,13 +15,20 @@ const workerScope = self as DedicatedWorkerGlobalScope
 const DEFAULT_COLUMN_WIDTH = 148
 const MAX_COLUMN_WIDTH = 320
 const MIN_COLUMN_WIDTH = 112
-const WIDTH_SAMPLE_ROWS = 140
-const WIDTH_SAMPLE_COLUMNS = 220
+const STANDARD_WIDTH_SAMPLE_ROWS = 140
+const STANDARD_WIDTH_SAMPLE_COLUMNS = 220
+const LARGE_WIDTH_SAMPLE_ROWS = 60
+const LARGE_WIDTH_SAMPLE_COLUMNS = 90
+const LARGE_FILE_SIZE_BYTES = 18 * 1024 * 1024
+const SEARCH_POPULATED_CELL_LIMIT = 250_000
+const SEARCH_GRID_CELL_LIMIT = 5_000_000
+const LARGE_SHEET_POPULATED_CELL_LIMIT = 350_000
+const LARGE_SHEET_GRID_CELL_LIMIT = 8_000_000
 
 let sourceBuffer: ArrayBuffer | null = null
-let workbookSheetNames: string[] = []
 let activeSheetName: string | null = null
 let activeWorksheet: XLSX.WorkSheet | null = null
+let workbookPerformanceMode: 'standard' | 'large' = 'standard'
 const sheetMetadataCache = new Map<string, SheetMetadata>()
 
 workerScope.addEventListener('message', (event: MessageEvent<WorkerRequest>) => {
@@ -68,7 +75,8 @@ function loadWorkbook(message: Extract<WorkerRequest, { type: 'load-workbook' }>
     WTF: false,
   })
 
-  workbookSheetNames = workbook.SheetNames
+  workbookPerformanceMode =
+    message.fileSize >= LARGE_FILE_SIZE_BYTES ? 'large' : 'standard'
 
   post({
     type: 'workbook-loaded',
@@ -77,7 +85,8 @@ function loadWorkbook(message: Extract<WorkerRequest, { type: 'load-workbook' }>
       fileSize: message.fileSize,
       format: message.format,
       loadedAt: new Date().toISOString(),
-      sheetNames: workbookSheetNames,
+      sheetNames: workbook.SheetNames,
+      performanceMode: workbookPerformanceMode,
     },
   })
 }
@@ -89,12 +98,12 @@ function loadSheet(sheetName: string): void {
 
   const workbook = XLSX.read(sourceBuffer, {
     type: 'array',
-    dense: true,
     sheets: sheetName,
-    raw: false,
+    raw: workbookPerformanceMode === 'large',
     cellFormula: false,
     cellHTML: false,
     cellNF: false,
+    cellText: workbookPerformanceMode !== 'large',
     cellStyles: false,
     sheetStubs: false,
     WTF: false,
@@ -160,6 +169,7 @@ function searchSheet(sheetName: string, query: string, limit: number): void {
       sheetName,
       query,
       results: [],
+      disabledReason: null,
     })
     return
   }
@@ -171,28 +181,41 @@ function searchSheet(sheetName: string, query: string, limit: number): void {
     throw new Error(`Sheet "${sheetName}" has no metadata.`)
   }
 
+  if (!metadata.searchEnabled) {
+    post({
+      type: 'search-results',
+      sheetName,
+      query,
+      results: [],
+      disabledReason: metadata.searchDisabledReason,
+    })
+    return
+  }
+
   const results: SearchResult[] = []
 
-  outer: for (let rowIndex = 0; rowIndex < metadata.rowCount; rowIndex += 1) {
-    for (let columnIndex = 0; columnIndex < metadata.columnCount; columnIndex += 1) {
-      const value = formatCell(getCell(worksheet, rowIndex, columnIndex))
+  for (const address in worksheet) {
+    if (isMetadataKey(address)) {
+      continue
+    }
 
-      if (!value) {
-        continue
-      }
+    const value = formatCell(worksheet[address] as XLSX.CellObject | undefined)
 
-      if (value.toLocaleLowerCase().includes(normalizedQuery)) {
-        results.push({
-          rowIndex,
-          columnIndex,
-          address: `${toColumnLabel(columnIndex)}${rowIndex + 1}`,
-          value,
-        })
-      }
+    if (!value || !value.toLocaleLowerCase().includes(normalizedQuery)) {
+      continue
+    }
 
-      if (results.length >= limit) {
-        break outer
-      }
+    const position = XLSX.utils.decode_cell(address)
+
+    results.push({
+      rowIndex: position.r,
+      columnIndex: position.c,
+      address: `${toColumnLabel(position.c)}${position.r + 1}`,
+      value,
+    })
+
+    if (results.length >= limit) {
+      break
     }
   }
 
@@ -201,6 +224,7 @@ function searchSheet(sheetName: string, query: string, limit: number): void {
     sheetName,
     query,
     results,
+    disabledReason: null,
   })
 }
 
@@ -231,16 +255,29 @@ function createSheetMetadata(
       columnCount: 0,
       range: null,
       columnWidths: [],
+      populatedCellCount: 0,
+      largeSheetMode: workbookPerformanceMode === 'large',
+      searchEnabled: true,
+      searchDisabledReason: null,
     }
   }
 
   const range = XLSX.utils.decode_range(ref)
   const rowCount = range.e.r + 1
   const columnCount = range.e.c + 1
+  const gridCellCount = rowCount * columnCount
   const columnWidths = Array.from({ length: columnCount }, () => DEFAULT_COLUMN_WIDTH)
+  const widthSampleRows =
+    workbookPerformanceMode === 'large'
+      ? LARGE_WIDTH_SAMPLE_ROWS
+      : STANDARD_WIDTH_SAMPLE_ROWS
+  const widthSampleColumns =
+    workbookPerformanceMode === 'large'
+      ? LARGE_WIDTH_SAMPLE_COLUMNS
+      : STANDARD_WIDTH_SAMPLE_COLUMNS
 
-  const sampleRowEnd = Math.min(range.e.r, WIDTH_SAMPLE_ROWS - 1)
-  const sampleColumnEnd = Math.min(range.e.c, WIDTH_SAMPLE_COLUMNS - 1)
+  const sampleRowEnd = Math.min(range.e.r, widthSampleRows - 1)
+  const sampleColumnEnd = Math.min(range.e.c, widthSampleColumns - 1)
 
   for (let columnIndex = 0; columnIndex <= sampleColumnEnd; columnIndex += 1) {
     columnWidths[columnIndex] = clamp(
@@ -250,20 +287,46 @@ function createSheetMetadata(
     )
   }
 
-  for (let rowIndex = 0; rowIndex <= sampleRowEnd; rowIndex += 1) {
-    for (let columnIndex = 0; columnIndex <= sampleColumnEnd; columnIndex += 1) {
-      const value = formatCell(getCell(worksheet, rowIndex, columnIndex))
+  let populatedCellCount = 0
 
-      if (!value) {
-        continue
-      }
-
-      columnWidths[columnIndex] = Math.max(
-        columnWidths[columnIndex],
-        clamp(value.slice(0, 48).length * 8.4 + 34, MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH),
-      )
+  for (const address in worksheet) {
+    if (isMetadataKey(address)) {
+      continue
     }
+
+    populatedCellCount += 1
+
+    const position = XLSX.utils.decode_cell(address)
+
+    if (position.r > sampleRowEnd || position.c > sampleColumnEnd) {
+      continue
+    }
+
+    const value = formatCell(worksheet[address] as XLSX.CellObject | undefined)
+
+    if (!value) {
+      continue
+    }
+
+    columnWidths[position.c] = Math.max(
+      columnWidths[position.c],
+      clamp(value.slice(0, 48).length * 8.4 + 34, MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH),
+    )
   }
+
+  const largeSheetMode =
+    workbookPerformanceMode === 'large' ||
+    populatedCellCount > LARGE_SHEET_POPULATED_CELL_LIMIT ||
+    gridCellCount > LARGE_SHEET_GRID_CELL_LIMIT
+  const searchEnabled =
+    populatedCellCount <= SEARCH_POPULATED_CELL_LIMIT &&
+    gridCellCount <= SEARCH_GRID_CELL_LIMIT
+  const searchDisabledReason =
+    populatedCellCount === 0
+      ? null
+      : searchEnabled
+        ? null
+        : 'Search is disabled for this sheet to keep the browser responsive in large-file mode.'
 
   return {
     name: sheetName,
@@ -271,6 +334,10 @@ function createSheetMetadata(
     columnCount,
     range: ref,
     columnWidths,
+    populatedCellCount,
+    largeSheetMode,
+    searchEnabled,
+    searchDisabledReason,
   }
 }
 
@@ -301,8 +368,12 @@ function getCell(
   rowIndex: number,
   columnIndex: number,
 ): XLSX.CellObject | undefined {
-  const denseWorksheet = worksheet as unknown as Array<Array<XLSX.CellObject | undefined>>
-  return denseWorksheet[rowIndex]?.[columnIndex]
+  const address = XLSX.utils.encode_cell({
+    r: rowIndex,
+    c: columnIndex,
+  })
+
+  return worksheet[address] as XLSX.CellObject | undefined
 }
 
 function formatCell(cell: XLSX.CellObject | undefined): string {
@@ -323,6 +394,10 @@ function formatCell(cell: XLSX.CellObject | undefined): string {
   }
 
   return cell.v == null ? '' : String(cell.v)
+}
+
+function isMetadataKey(address: string): boolean {
+  return address.startsWith('!')
 }
 
 function post(message: WorkerResponse): void {
