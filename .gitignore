@@ -10,7 +10,11 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+.next
+.vercel
+.cache
 *.local
+30mb.xlsx
 
 # Editor directories and files
 .vscode/*

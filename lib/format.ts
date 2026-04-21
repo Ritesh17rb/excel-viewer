@@ -9,7 +9,7 @@ export function formatBytes(value: number): string {
     return '0 B'
   }
 
-  const units = ['B', 'KB', 'MB', 'GB']
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
   const exponent = Math.min(
     Math.floor(Math.log(value) / Math.log(1024)),
     units.length - 1,
@@ -25,7 +25,7 @@ export function formatCount(value: number): string {
 
 export function fileExtension(fileName: string): string {
   const [, extension = 'spreadsheet'] = /\.([^.]+)$/.exec(fileName) ?? []
-  return extension.toUpperCase()
+  return extension.toLowerCase()
 }
 
 export function toColumnLabel(index: number): string {
@@ -51,3 +51,13 @@ export function addressFromPosition(
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
 }
+
+export function sanitizeSegment(value: string): string {
+  const normalized = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+  return normalized || 'sheet'
+}
+

@@ -1,25 +1,23 @@
 # Atlas Sheet Viewer
 
-Static spreadsheet viewer built with React, Vite, and SheetJS for GitHub Pages deployment.
+Server-backed Excel viewer for large `.xlsx` files, built for Vercel.
 
-## What it does
+## Architecture
 
-- Opens local `.xlsx`, `.xls`, `.xlsm`, `.xlsb`, `.csv`, `.tsv`, and `.ods` files.
-- Parses workbooks inside a Web Worker so the UI stays responsive.
-- Loads one sheet at a time and requests visible cell windows on demand.
-- Renders the sheet through a virtualized grid instead of painting the full workbook DOM.
-- Includes search for the active sheet, workbook metadata, and a sheet switcher.
+- Next.js App Router frontend and API routes
+- Direct browser uploads to Vercel Blob in deployed environments
+- Streaming `.xlsx` ingestion with `exceljs`
+- Server-side chunking into row pages
+- Virtualized client grid that fetches only visible page data
 
-## Large file strategy
+This is intentionally not a browser-only parser anymore. The browser never tries to hold the full workbook in memory.
 
-This app is designed to stay usable with bigger spreadsheets, including files larger than 50 MB, by combining:
+## Current scope
 
-- worker-based parsing
-- lazy sheet loading
-- tiled cell-window fetching
-- row and column virtualization
-
-There is still a hard browser-memory ceiling. Very wide sheets, heavily formatted workbooks, or extremely dense files can still hit client-side limits because GitHub Pages is a static host and all parsing happens in the browser.
+- Optimized for large `.xlsx` files
+- Local development supports a direct local upload route
+- Deployed environments should use Vercel Blob uploads
+- Active-sheet search is currently disabled in the server-backed path
 
 ## Development
 
@@ -34,27 +32,29 @@ Production build:
 npm run build
 ```
 
-Preview the built app locally:
+Lint:
 
 ```bash
-npm run preview
+npm run lint
 ```
 
-## Deploy to GitHub Pages
+Sample workbook ingestion test:
 
-The repo includes [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml), which builds the Vite app and deploys `dist/` to GitHub Pages.
+```bash
+npm run test:sample -- /absolute/path/to/file.xlsx
+```
 
-To enable deployment:
+## Vercel deployment
 
-1. Push the repository to GitHub.
-2. Make sure the default branch is `main`, or update the workflow branch filter.
-3. In GitHub, set Pages to use **GitHub Actions** as the source.
-4. Push to `main` or run the workflow manually.
+1. Push the repo to GitHub.
+2. Import the repo into Vercel.
+3. Create a Vercel Blob store and connect it to the project.
+4. Set `BLOB_ACCESS=public` or `BLOB_ACCESS=private`.
+5. Deploy.
 
-The Vite config uses `base: './'`, so the generated app works on project pages without hardcoding a repository name.
+If you use a private Blob store, keep `BLOB_READ_WRITE_TOKEN` available in the Vercel project environment.
 
 ## Notes
 
-- Search currently scans the active sheet only.
-- Files are never uploaded anywhere by this app.
-- The `xlsx` package currently reports one high-severity advisory in `npm audit`; review that before using this viewer for untrusted workbook workflows.
+- The server-backed parser currently supports `.xlsx`.
+- The old GitHub Pages worker-based approach was removed because it was not reliable for the 30 MB sample workbook.
