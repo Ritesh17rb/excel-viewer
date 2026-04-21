@@ -1,32 +1,49 @@
 # Atlas Sheet Viewer
 
-Server-backed Excel viewer for large `.xlsx` files, built for Vercel.
+Server-backed Excel viewer for large `.xlsx` files, deployed on Vercel.
+
+Live app: `https://excel-viewer-fawn.vercel.app`
+
+## What it does
+
+- Visible upload button plus drag-and-drop for `.xlsx` files
+- Direct browser uploads to Vercel Blob in production
+- Streaming workbook ingestion with `exceljs`
+- Server-side paging so the browser does not hold the whole workbook in memory
+- Virtualized spreadsheet grid
+- Server-backed search with jump-to-cell results
+- Server-backed sorting
+- Server-backed text filters
+- Header-row mode for sort/filter operations
 
 ## Architecture
 
 - Next.js App Router frontend and API routes
-- Direct browser uploads to Vercel Blob in deployed environments
-- Streaming `.xlsx` ingestion with `exceljs`
-- Server-side chunking into row pages
-- Virtualized client grid that fetches only visible page data
+- `@vercel/blob` for uploaded workbooks and processed artifacts
+- `exceljs` streaming reader for ingestion
+- Server-generated paged workbook artifacts
+- Derived sheet views for sort/filter operations
 
-This is intentionally not a browser-only parser anymore. The browser never tries to hold the full workbook in memory.
+This project is intentionally not a browser-only parser. Large workbooks are parsed on the server, then served back to the UI as lightweight row pages and derived views.
 
-## Current scope
+## Current limitations
 
-- Optimized for large `.xlsx` files
-- Local development supports a direct local upload route
-- Deployed environments should use Vercel Blob uploads
-- Active-sheet search is currently disabled in the server-backed path
+- Read-only viewer: no editing or saving workbook changes
+- `.xlsx` only in the server-backed ingestion path
+- No formula recalculation engine
+- No charts, pivot tables, comments, or macros UI
+- Formatting fidelity is limited compared with desktop Excel
 
 ## Development
+
+Install dependencies and start the app:
 
 ```bash
 npm install
 npm run dev
 ```
 
-Production build:
+Build:
 
 ```bash
 npm run build
@@ -44,17 +61,29 @@ Sample workbook ingestion test:
 npm run test:sample -- /absolute/path/to/file.xlsx
 ```
 
-## Vercel deployment
+## Deployment
 
-1. Push the repo to GitHub.
-2. Import the repo into Vercel.
-3. Create a Vercel Blob store and connect it to the project.
-4. Set `BLOB_ACCESS=public` or `BLOB_ACCESS=private`.
+The app is configured for Vercel.
+
+Required setup:
+
+1. Create or import the project in Vercel.
+2. Connect a Vercel Blob store to the project.
+3. Set `BLOB_ACCESS=private` or `BLOB_ACCESS=public`.
+4. Ensure `BLOB_READ_WRITE_TOKEN` is available in the project environment.
 5. Deploy.
 
-If you use a private Blob store, keep `BLOB_READ_WRITE_TOKEN` available in the Vercel project environment.
+This repo already includes [vercel.json](/home/ritesh/work/excel-viewer/vercel.json) so Vercel treats the project as a Next.js app.
 
-## Notes
+## Important files
 
-- The server-backed parser currently supports `.xlsx`.
-- The old GitHub Pages worker-based approach was removed because it was not reliable for the 30 MB sample workbook.
+- [components/workbook-viewer.tsx](/home/ritesh/work/excel-viewer/components/workbook-viewer.tsx)
+- [components/spreadsheet-grid.tsx](/home/ritesh/work/excel-viewer/components/spreadsheet-grid.tsx)
+- [lib/server/workbook-ingest.ts](/home/ritesh/work/excel-viewer/lib/server/workbook-ingest.ts)
+- [lib/server/workbook-views.ts](/home/ritesh/work/excel-viewer/lib/server/workbook-views.ts)
+- [app/api/workbooks/[id]/search/route.ts](/home/ritesh/work/excel-viewer/app/api/workbooks/[id]/search/route.ts)
+- [app/api/workbooks/[id]/view/route.ts](/home/ritesh/work/excel-viewer/app/api/workbooks/[id]/view/route.ts)
+
+## Why this exists
+
+The earlier GitHub Pages/browser-worker version was not reliable for large files like the 30 MB workbook tested in this repo. This version moves ingestion and heavy workbook operations to the server so large sheets remain usable in the browser.
